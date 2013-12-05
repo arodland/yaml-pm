@@ -513,14 +513,24 @@ sub _parse_inline_seq {
 # Parse the inline double quoted string.
 sub _parse_inline_double_quoted {
     my $self = shift;
-    my $node;
-    # https://rt.cpan.org/Public/Bug/Display.html?id=90593
-    if ($self->inline =~ /^"((?>(?>(?:\\"|[^"]){0,32766}){0,32766}))"\s*(.*)$/) {
-        $node = $1;
-        $self->inline($2);
-        $node =~ s/\\"/"/g;
+    my $inline = $self->inline;
+    my $node = "";
+    $inline =~ /^"/g;
+    TOK: {
+        if ($inline =~ /\G\\"/gc) {
+            $node .= '"';
+            redo TOK;
+        } elsif ($inline =~ /\G\\/gc) {
+            $node .= '\\';
+            redo TOK;
+        } elsif ($inline =~ /\G([^\\"]+)/gc) {
+            $node .= $1;
+            redo TOK;
+        }
     }
-    else {
+    if ($inline =~ /\G"\s*(.*)$/) {
+        $self->inline($1);
+    } else {
         $self->die('YAML_PARSE_ERR_BAD_DOUBLE');
     }
     return $node;
@@ -530,13 +540,21 @@ sub _parse_inline_double_quoted {
 # Parse the inline single quoted string.
 sub _parse_inline_single_quoted {
     my $self = shift;
-    my $node;
-    if ($self->inline =~ /^'((?:''|[^'])*)'\s*(.*)$/) {
-        $node = $1;
-        $self->inline($2);
-        $node =~ s/''/'/g;
+    my $inline = $self->inline;
+    my $node = "";
+    $inline =~ /^'/g;
+    TOK: {
+        if ($inline =~ /\G''/gc) {
+            $node .= "'";
+            redo TOK;
+        } elsif ($inline =~ /\G([^']+)/gc) {
+            $node .= $1;
+            redo TOK;
+        }
     }
-    else {
+    if ($inline =~ /\G'\s*(.*)$/gc) {
+        $self->inline($1);
+    } else {
         $self->die('YAML_PARSE_ERR_BAD_SINGLE');
     }
     return $node;
